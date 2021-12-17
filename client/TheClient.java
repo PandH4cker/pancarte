@@ -1,6 +1,7 @@
 package client;
 
 import java.io.*;
+import java.util.Arrays;
 import opencard.core.service.*;
 import opencard.core.terminal.*;
 import opencard.core.util.*;
@@ -18,9 +19,9 @@ public class TheClient {
 	private static final boolean DISPLAY = true;
 
 	private static final byte CLA								= (byte) 0x00;
-	private static final byte P1								= (byte) 0x00;
-	private static final byte P2								= (byte) 0x00;
-	private static final byte FILE_BLOCK_SIZE					= (byte) 0x40;
+	private static byte P1										= (byte) 0x00;
+	private static byte P2										= (byte) 0x00;
+	private static final byte DMS 								= (byte) 0x08;
 	private static 		 byte LC								= (byte) 0x00;
 
 	public TheClient() {
@@ -144,8 +145,12 @@ public class TheClient {
 		mainLoop();
 	}
 
+	void listFilesFromCard() {
 
-	void updateCardKey() {
+	}
+
+	void compareFilesFromCard() {
+
 	}
 
 
@@ -156,21 +161,73 @@ public class TheClient {
 	void cipherFileByCard() {
 	}
 
-
-	void cipherAndUncipherNameByCard() {
-	}
-
-
 	void readFileFromCard() {
 	}
 
 
 	void writeFileToCard() {
+		String filePath = readKeyboard();
+		try {
+			File f = new File(filePath);
+			InputStream inputStream = new FileInputStream(f);
+			DataInputStream dataInputStream = new DataInputStream(inputStream);
 
+			String basename = f.getName();
+			int apduLength = 6 + basename.length();
+			
+			byte[] apdu = new byte[apduLength];
+			apdu[0] = CLA;
+			apdu[1] = CommandCode.WRITE_FILE_TO_CARD.getCode();
+			apdu[2] = P1 = 0;
+			apdu[3] = P2 = 0;
+			apdu[4] = LC = (byte) basename.length();
+
+			System.arraycopy(basename.getBytes(), 0, apdu, 5, LC);
+			apdu[apduLength - 1] = 0; // LE
+
+			this.cmd = new CommandAPDU(apdu);
+			resp = this.sendAPDU(cmd, DISPLAY);
+
+			ResponseCode responseCode = ResponseCode.fromString(this.apdu2string(resp));
+			if (responseCode == ResponseCode.OK)
+				System.out.println("[+] Filename " + basename + " written");
+			else printError(responseCode);
+
+			byte[] buffer = new byte[DMS];
+			while(dataInputStream.available() > 0) {
+				dataInputStream.readFully(buffer, 0, DMS);
+				
+				apduLength = 6 + buffer.length;
+				if (!(dataInputStream.available() > 0))
+					P1 = 2;
+				++P2;
+
+				apdu[0] = CLA;
+				apdu[1] = CommandCode.WRITE_FILE_TO_CARD.getCode();
+				apdu[2] = P1;
+				apdu[3] = P2;
+				apdu[4] = LC = (byte) buffer.length;
+
+				System.arraycopy(buffer, 0, apdu, 5, LC);
+				apdu[apduLength - 1] = 0; // LE
+
+				this.cmd = new CommandAPDU(apdu);
+				resp = this.sendAPDU(cmd, DISPLAY);
+
+				responseCode = ResponseCode.fromString(this.apdu2string(resp));
+				if (responseCode == ResponseCode.OK)
+					System.out.println("[+] Added Data: " + Arrays.toString(buffer) + " to " + basename);
+				else printError(responseCode);
+			}
+
+			System.out.println("[+] File written successfully !");
+		} catch (Exception e) {
+			System.err.println(e.getMessage());
+		}
 	}
 
 
-	void updateWritePIN() {
+	/*void updateWritePIN() {
 		String pin = readKeyboard();
 		int apduLength = pin.length() + 5;
 		byte[] apdu = new byte[apduLength];
@@ -189,10 +246,10 @@ public class TheClient {
 		if (responseCode == ResponseCode.OK)
 			System.out.println("[+] Write PIN Updated With " + pin);
 		else printError(responseCode);
-	}
+	}*/
 
 
-	void updateReadPIN() {
+	/*void updateReadPIN() {
 		String pin = readKeyboard();
 		int apduLength = pin.length() + 5;
 		byte[] apdu = new byte[apduLength];
@@ -211,10 +268,10 @@ public class TheClient {
 		if (responseCode == ResponseCode.OK)
 			System.out.println("[+] Read PIN Updated With " + pin);
 		else printError(responseCode);
-	}
+	}*/
 
 
-	void displayPINSecurity() {
+	/*void displayPINSecurity() {
 		int apduLength = 5;
 		byte[] apdu = new byte[apduLength];
 		apdu[0] = CLA;
@@ -232,10 +289,10 @@ public class TheClient {
 			byte[] bytes = resp.getBytes();
 	    	System.out.println("[+] PINSecurity: " + (bytes[0] == 1 ? "activated" : "deactivated"));
 		} else printError(responseCode);
-	}
+	}*/
 
 
-	void desactivateActivatePINSecurity() {
+	/*void desactivateActivatePINSecurity() {
 		int apduLength = 5;
 		byte[] apdu = new byte[apduLength];
 		apdu[0] = CLA;
@@ -251,10 +308,10 @@ public class TheClient {
 		if (responseCode == ResponseCode.OK)
 			System.out.println("[+] Toggled PIN Security");
 		else printError(responseCode);
-	}
+	}*/
 
 
-	void enterReadPIN() {
+	/*void enterReadPIN() {
 		String pin = readKeyboard();
 		int apduLength = pin.length() + 5;
 		byte[] apdu = new byte[apduLength];
@@ -274,10 +331,10 @@ public class TheClient {
 		if (responseCode == ResponseCode.OK)
 			System.out.println("[+] Read PIN Enabled");
 		else printError(responseCode);
-	}
+	}*/
 
 
-	void enterWritePIN() {
+	/*void enterWritePIN() {
 		String pin = readKeyboard();
 		int apduLength = pin.length() + 5;
 		byte[] apdu = new byte[apduLength];
@@ -296,10 +353,10 @@ public class TheClient {
 		if (responseCode == ResponseCode.OK)
 			System.out.println("[+] Write PIN Enabled");
 		else printError(responseCode);
-	}
+	}*/
 
 
-	void readNameFromCard() {
+	/*void readNameFromCard() {
 		int apduLength = 5;
 		byte[] apdu = new byte[apduLength];
 		apdu[0] = CLA;
@@ -322,10 +379,10 @@ public class TheClient {
 
 	    	System.out.println("[+] " + msg + " name retrieved from the card");
 		} else printError(responseCode);
-	}
+	}*/
 
 
-	void writeNameToCard() {
+	/*void writeNameToCard() {
 		String name = readKeyboard();
 		int apduLength = name.length() + 5;
 		byte[] apdu = new byte[apduLength];
@@ -344,7 +401,7 @@ public class TheClient {
 		if (responseCode == ResponseCode.OK) 
 			System.out.println("[+] " + name + " added to the name of the card");
 		else printError(responseCode);
-	}
+	}*/
 
 
 	void exit() {
@@ -354,20 +411,12 @@ public class TheClient {
 
 	void runAction(int choice) {
 		switch(choice) {
-			case 14: updateCardKey(); break;
-			case 13: uncipherFileByCard(); break;
-			case 12: cipherFileByCard(); break;
-			case 11: cipherAndUncipherNameByCard(); break;
-			case 10: readFileFromCard(); break;
-			case 9: writeFileToCard(); break;
-			case 8: updateWritePIN(); break;
-			case 7: updateReadPIN(); break;
-			case 6: displayPINSecurity(); break;
-			case 5: desactivateActivatePINSecurity(); break;
-			case 4: enterReadPIN(); break;
-			case 3: enterWritePIN(); break;
-			case 2: readNameFromCard(); break;
-			case 1: writeNameToCard(); break;
+			case 6: readFileFromCard(); break;
+			case 5: listFilesFromCard(); break;
+			case 4: writeFileToCard(); break;
+			case 3: compareFilesFromCard(); break;
+			case 2: uncipherFileByCard(); break;
+			case 1: cipherFileByCard(); break;
 			case 0: exit(); break;
 			default: System.out.println("unknown choice!");
 		}
@@ -402,20 +451,12 @@ public class TheClient {
 
 	void printMenu() {
 		System.out.println("");
-		System.out.println("14: update the DES key within the card");
-		System.out.println("13: uncipher a file by the card");
-		System.out.println("12: cipher a file by the card");
-		System.out.println("11: cipher and uncipher a name by the card");
-		System.out.println("10: read a file from the card");
-		System.out.println("9: write a file to the card");
-		System.out.println("8: update WRITE_PIN");
-		System.out.println("7: update READ_PIN");
-		System.out.println("6: display PIN security status");
-		System.out.println("5: desactivate/activate PIN security");
-		System.out.println("4: enter READ_PIN");
-		System.out.println("3: enter WRITE_PIN");
-		System.out.println("2: read a name from the card");
-		System.out.println("1: write a name to the card");
+		System.out.println("6: read file from card");
+		System.out.println("5: list files from card");
+		System.out.println("4: write file to card");
+		System.out.println("3: compare files from card");
+		System.out.println("2: uncipher file by card");
+		System.out.println("1: cipher file by card");
 		System.out.println("0: exit");
 		System.out.print("--> ");
 	}
