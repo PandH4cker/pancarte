@@ -19,8 +19,8 @@ public class TheApplet extends Applet {
 	private static byte[] NVR               = new byte[NVRSIZE];
 
 	private static final byte DMS = (byte) 0x08;
+	private static short nbChunksOffsetInNVR;
 	
-
 	private OwnerPIN readPin;
 	private OwnerPIN writePin;
 
@@ -128,12 +128,34 @@ public class TheApplet extends Applet {
 		byte P1 = buffer[2];
 		byte P2 = buffer[3];
 
-		short filenameOffset = (short) 4;
-		byte filenameSize = buffer[filenameOffset];
-		Util.arrayCopy(buffer, (short) filenameOffset, NVR, (short) 0, (short) (filenameSize + 1));
+		if (P1 == 0) {
+			short filenameOffset = (short) 4;
+			short filenameSize = buffer[filenameOffset];
+			Util.arrayCopy(buffer, (short) filenameOffset, NVR, (short) 0, (short) (filenameSize + 1));
 
-		short nbChunksOffsetInNVR = (short) (filenameSize + 1);
-		NVR[nbChunksOffsetInNVR] = (byte) 0;
+			nbChunksOffsetInNVR = (short) (filenameSize + 1);
+			NVR[nbChunksOffsetInNVR] = (byte) 0;
+		} else if (P1 == 1) {
+			short dataSizeOffset = (short) 4;
+			short dataSize = buffer[dataSizeOffset];
+
+			short offsetInNVR = (short) ((nbChunksOffsetInNVR + 2) + (DMS * P2));
+
+			Util.arrayCopy(buffer, (short) (dataSizeOffset + 1), NVR, offsetInNVR, (short) dataSize);
+
+			++NVR[nbChunksOffsetInNVR];
+		} else if (P1 == 2) {
+			short dataSizeOffset = (short) 4;
+			short dataSize = buffer[dataSizeOffset];
+
+			short offsetInNVR = (short) ((nbChunksOffsetInNVR + 2) + (DMS * P2));
+
+			Util.arrayCopy(buffer, (short) (dataSizeOffset + 1), NVR, offsetInNVR, (short) dataSize);
+
+			++NVR[nbChunksOffsetInNVR];
+
+			NVR[(short) (nbChunksOffsetInNVR + 1)] = (byte) dataSize;
+		}
 		
 		/*apdu.setIncomingAndReceive();
 		buffer = apdu.getBuffer();
@@ -145,7 +167,7 @@ public class TheApplet extends Applet {
 		byte lastDataSize = buffer[lastDataSizeOffset];
 		NVR[(short) (nbChunksOffsetInNVR + 1)] = lastDataSize;*/
 
-		while(P1 != 2) {
+		/*while(P1 != 2) {
 			apdu.setIncomingAndReceive();
 			buffer = apdu.getBuffer();
 
@@ -162,7 +184,7 @@ public class TheApplet extends Applet {
 
 			if (P1 == 2)
 				NVR[(short) (nbChunksOffsetInNVR + 1)] = (byte) dataSize;
-		}
+		}*/
 	}
 
 	void listFilesFromCard(APDU apdu) {

@@ -173,7 +173,7 @@ public class TheClient {
 			DataInputStream dataInputStream = new DataInputStream(inputStream);
 
 			String basename = f.getName();
-			int apduLength = 6 + basename.length();
+			int apduLength = 5 + basename.length();
 			
 			byte[] apdu = new byte[apduLength];
 			apdu[0] = CLA;
@@ -183,7 +183,6 @@ public class TheClient {
 			apdu[4] = LC = (byte) basename.length();
 
 			System.arraycopy(basename.getBytes(), 0, apdu, 5, LC);
-			apdu[apduLength - 1] = 0; // LE
 
 			this.cmd = new CommandAPDU(apdu);
 			resp = this.sendAPDU(cmd, DISPLAY);
@@ -197,11 +196,12 @@ public class TheClient {
 			while(dataInputStream.available() > 0) {
 				dataInputStream.readFully(buffer, 0, DMS);
 				
-				apduLength = 6 + buffer.length;
+				apduLength = 5 + buffer.length;
 				if (!(dataInputStream.available() > 0))
 					P1 = 2;
 				++P2;
-
+				
+				apdu = new byte[apduLength];
 				apdu[0] = CLA;
 				apdu[1] = CommandCode.WRITE_FILE_TO_CARD.getCode();
 				apdu[2] = P1;
@@ -209,7 +209,6 @@ public class TheClient {
 				apdu[4] = LC = (byte) buffer.length;
 
 				System.arraycopy(buffer, 0, apdu, 5, LC);
-				apdu[apduLength - 1] = 0; // LE
 
 				this.cmd = new CommandAPDU(apdu);
 				resp = this.sendAPDU(cmd, DISPLAY);
