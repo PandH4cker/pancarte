@@ -2,8 +2,8 @@ package client.codes;
 
 public enum ResponseCode {
     OK("90 00", "Ok"),
-    SW_VERIFICATION_FAILED("63 00", "Verification Failed"),
-    SW_PIN_VERIFICATION_REQUIRED("63 01", "PIN Verification Required"),
+    SW_NO_MORE_MEMORY_AVAILABLE("63 00", "No More Memory Available"),
+    SW_FILE_NUMBER_ERROR("63 01", "File Number Error"),
     SW_EXCEEDED_MAX_SIZE("6F 00", "Exceeded Max Size"),
     UNKNOWN("", "Unknown Response");
 

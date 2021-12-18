@@ -21,7 +21,7 @@ public class TheClient {
 	private static final byte CLA								= (byte) 0x00;
 	private static byte P1										= (byte) 0x00;
 	private static byte P2										= (byte) 0x00;
-	private static final byte DMS 								= (byte) 0x08;
+	private static final byte DMS 								= (byte) 0x80;
 	private static 		 byte LC								= (byte) 0x00;
 
 	public TheClient() {
@@ -162,6 +162,44 @@ public class TheClient {
 	}
 
 	void readFileFromCard() {
+		String nthFile = readKeyboard();
+
+		int apduLength = 6 + nthFile.length();
+		byte[] apdu = new byte[apduLength];
+		apdu[0] = CLA;
+		apdu[1] = CommandCode.READ_FILE_FROM_CARD.getCode();
+		apdu[2] = P1 = 0;
+		apdu[3] = P2 = 0;
+		apdu[4] = LC = (byte) 1;
+		apdu[5] = (byte) (nthFile.getBytes()[0] - 0x30);
+
+		this.cmd = new CommandAPDU(apdu);
+		this.resp = this.sendAPDU(cmd, DISPLAY);
+
+		String responseString = this.apdu2string(resp);
+		ResponseCode responseCode = ResponseCode.fromString(responseString.substring(responseString.length() - 5));		
+		if (responseCode == ResponseCode.OK) {
+			byte[] buffer = this.resp.getBytes();
+			String filename = "";
+			String data = "";
+
+			int i = 1;
+			for (; i <= buffer[0]; ++i)
+				filename += (char) buffer[i];
+
+			int chunkNumberOffset = i++;
+			System.out.println("Chunks number: " + buffer[chunkNumberOffset]);
+
+			int lastDataSizeOffset = i++;
+			System.out.println("Last Data Size: " + buffer[lastDataSizeOffset]);
+
+			for(; i < lastDataSizeOffset + 1 + (DMS & 0xFF) * (buffer[chunkNumberOffset] - 1) + buffer[lastDataSizeOffset]; ++i)
+				data += (char) buffer[i];
+
+			System.out.println("[+] File #"+ nthFile + " [" + filename + "]:");
+			System.out.println(data);
+			System.out.println("[+] File successfully retrieved !");
+		} else printError(responseCode);
 	}
 
 
@@ -192,12 +230,15 @@ public class TheClient {
 				System.out.println("[+] Filename " + basename + " written");
 			else printError(responseCode);
 
-			byte[] buffer = new byte[DMS];
+			P1 = 1;
 			while(dataInputStream.available() > 0) {
-				dataInputStream.readFully(buffer, 0, DMS);
-				
-				apduLength = 5 + buffer.length;
-				if (!(dataInputStream.available() > 0))
+				int bufferLength = (DMS & 0xFF) < dataInputStream.available() ? (DMS & 0xFF) : dataInputStream.available();
+				byte[] buffer = new byte[bufferLength];
+
+				dataInputStream.readFully(buffer, 0, bufferLength);
+								
+				apduLength = 5 + bufferLength;
+				if (!(dataInputStream.available() > 0)) 
 					P1 = 2;
 				++P2;
 				
@@ -206,9 +247,11 @@ public class TheClient {
 				apdu[1] = CommandCode.WRITE_FILE_TO_CARD.getCode();
 				apdu[2] = P1;
 				apdu[3] = P2;
-				apdu[4] = LC = (byte) buffer.length;
+				apdu[4] = LC = (byte) bufferLength;
 
-				System.arraycopy(buffer, 0, apdu, 5, LC);
+				System.out.println("Buffer length: " + bufferLength);
+
+				System.arraycopy(buffer, 0, apdu, 5, LC & 0xFF);
 
 				this.cmd = new CommandAPDU(apdu);
 				resp = this.sendAPDU(cmd, DISPLAY);
