@@ -18,7 +18,7 @@ public class TheApplet extends Applet {
 	private final static short NVRSIZE      = (short) 16384;
 	private static byte[] NVR               = new byte[NVRSIZE];
 
-	private static final byte DMS = (byte) 0x80;
+	private static final byte DMS = (byte) 0x90;
 	private static short nbChunksOffsetInNVR;
 	
 	private OwnerPIN readPin;
@@ -107,7 +107,12 @@ public class TheApplet extends Applet {
 		short currOffset = 0, dataSize = 0;
 		while (NVR[currOffset] != 0) {
 			short chunkOffset = (short) (currOffset + (NVR[currOffset] + 1));
-			dataSize = (short) ((NVR[currOffset] + 1) + ((NVR[chunkOffset] - 1) * (DMS & 0xFF)) + NVR[(short) (chunkOffset + 1)] + 2);
+			dataSize = (short) (
+				(NVR[currOffset] + 1) + 
+				((NVR[chunkOffset] - 1) * (DMS & 0xFF)) + 
+				(NVR[(short) (chunkOffset + 1)] & 0xFF) + 
+				2
+			);
 
 			if (--nth == 0) {
 				byte[] file = new byte[dataSize];
@@ -127,7 +132,12 @@ public class TheApplet extends Applet {
 		short currOffset = 0, dataSize = 0, fileCounter = 0;
 		while (NVR[currOffset] != 0) {
 			short chunkOffset = (short) (currOffset + (NVR[currOffset] + 1));
-			dataSize = (short) ((NVR[currOffset] + 1) + ((NVR[chunkOffset] - 1) * (DMS & 0xFF)) + NVR[(short) (chunkOffset + 1)] + 2);
+			dataSize = (short) (
+				(NVR[currOffset] + 1) + 
+				((NVR[chunkOffset] - 1) * (DMS & 0xFF)) + 
+				(NVR[(short) (chunkOffset + 1)] & 0xFF) + 
+				2
+			);
 
 			currOffset += dataSize;
 			++fileCounter;
@@ -193,7 +203,7 @@ public class TheApplet extends Applet {
 			++NVR[nbChunksOffsetInNVR];
 
 			if (P1 == 2)
-				NVR[(short) (nbChunksOffsetInNVR + 1)] = (byte) dataSize;
+				NVR[(short) (nbChunksOffsetInNVR + 1)] = buffer[dataSizeOffset];
 		}		
 	}
 

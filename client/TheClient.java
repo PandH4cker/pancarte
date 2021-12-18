@@ -21,7 +21,7 @@ public class TheClient {
 	private static final byte CLA								= (byte) 0x00;
 	private static byte P1										= (byte) 0x00;
 	private static byte P2										= (byte) 0x00;
-	private static final byte DMS 								= (byte) 0x80;
+	private static final byte DMS 								= (byte) 0x90;
 	private static 		 byte LC								= (byte) 0x00;
 
 	public TheClient() {
@@ -191,9 +191,14 @@ public class TheClient {
 			System.out.println("Chunks number: " + buffer[chunkNumberOffset]);
 
 			int lastDataSizeOffset = i++;
-			System.out.println("Last Data Size: " + buffer[lastDataSizeOffset]);
+			System.out.println("Last Data Size: " + (buffer[lastDataSizeOffset] & 0xFF));
 
-			for(; i < lastDataSizeOffset + 1 + (DMS & 0xFF) * (buffer[chunkNumberOffset] - 1) + buffer[lastDataSizeOffset]; ++i)
+			for(; 
+				i < lastDataSizeOffset + 
+					1 + 
+					(DMS & 0xFF) * (buffer[chunkNumberOffset] - 1) + 
+					(buffer[lastDataSizeOffset] & 0xFF); 
+				++i)
 				data += (char) buffer[i];
 
 			System.out.println("[+] File #"+ nthFile + " [" + filename + "]:");
