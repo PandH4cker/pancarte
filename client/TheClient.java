@@ -179,27 +179,88 @@ public class TheClient {
 		String responseString = this.apdu2string(resp);
 		ResponseCode responseCode = ResponseCode.fromString(responseString.substring(responseString.length() - 5));		
 		if (responseCode == ResponseCode.OK) {
-			byte[] buffer = this.resp.getBytes();
+			byte[] metadata = this.resp.getBytes();
 			String filename = "";
 			String data = "";
 
 			int i = 1;
-			for (; i <= buffer[0]; ++i)
-				filename += (char) buffer[i];
+			for (; i <= metadata[0]; ++i)
+				filename += (char) metadata[i];
 
 			int chunkNumberOffset = i++;
-			System.out.println("Chunks number: " + buffer[chunkNumberOffset]);
+			System.out.println("Chunks number: " + metadata[chunkNumberOffset]);
 
 			int lastDataSizeOffset = i++;
-			System.out.println("Last Data Size: " + (buffer[lastDataSizeOffset] & 0xFF));
+			System.out.println("Last Data Size: " + (metadata[lastDataSizeOffset] & 0xFF));
 
-			for(; 
+
+			byte[] fileData = new byte[(metadata[chunkNumberOffset] - 1) * (DMS & 0xFF) + (metadata[lastDataSizeOffset] & 0xFF)];
+
+			i = 0;
+			apdu[2] = P1 = 1;
+			for (; i < metadata[chunkNumberOffset] - 1; ++i) {
+				apdu[3] = P2 = (byte) (i + 1);
+
+				this.cmd = new CommandAPDU(apdu);
+				System.out.println(Arrays.toString(apdu));
+				this.resp = this.sendAPDU(cmd, DISPLAY);
+
+				responseString = HexString.hexify(
+					Arrays.copyOfRange(
+						resp.getBytes(), 
+						resp.getBytes().length - 2, 
+						resp.getBytes().length
+					)
+				);
+				responseCode = ResponseCode.fromString(responseString);
+				if (responseCode == ResponseCode.OK) {
+					System.arraycopy(Arrays.copyOfRange(
+						resp.getBytes(), 
+						0, 
+						resp.getBytes().length - 2
+					), 0, fileData, (DMS & 0xFF) * i, (DMS & 0xFF));
+				} else {
+					printError(responseCode);
+					return;
+				}
+			}
+
+			apdu[2] = P1 = 2;
+			apdu[3] = P2 = (byte) (i + 1);
+
+			this.cmd = new CommandAPDU(apdu);
+			this.resp = this.sendAPDU(cmd, DISPLAY);
+
+			responseString = HexString.hexify(
+				Arrays.copyOfRange(
+					resp.getBytes(), 
+					resp.getBytes().length - 2, 
+					resp.getBytes().length
+				)
+			);
+			responseCode = ResponseCode.fromString(responseString);
+			if (responseCode == ResponseCode.OK) {
+				System.arraycopy(Arrays.copyOfRange(
+					resp.getBytes(), 
+					0, 
+					resp.getBytes().length - 2
+				), 0, fileData, (DMS & 0xFF) * i, (metadata[lastDataSizeOffset] & 0xFF));
+			} else {
+				printError(responseCode);
+				return;
+			}
+
+			i = 0;
+			for (; i < fileData.length; ++i)
+				data += (char) fileData[i];
+
+			/*for(; 
 				i < lastDataSizeOffset + 
 					1 + 
-					(DMS & 0xFF) * (buffer[chunkNumberOffset] - 1) + 
-					(buffer[lastDataSizeOffset] & 0xFF); 
+					(DMS & 0xFF) * (metadata[chunkNumberOffset] - 1) + 
+					(metadata[lastDataSizeOffset] & 0xFF); 
 				++i)
-				data += (char) buffer[i];
+				data += (char) metadata[i];*/
 
 			System.out.println("[+] File #"+ nthFile + " [" + filename + "]:");
 			System.out.println(data);

@@ -128,6 +128,29 @@ public class TheApplet extends Applet {
 		return null; // UNREACHABLE
 	}
 
+	private byte[] getMetadata(byte[] file) {
+		short filenameSize = (short) (file[0] & 0xFF);
+		byte[] newBuffer = new byte[(short) ((filenameSize + 1) + 2)];
+
+		Util.arrayCopy(file, (short) 0, newBuffer, (short) 0, (short) newBuffer.length);
+
+		return newBuffer;
+	}
+
+	private byte[] getData(byte[] file) {
+		short filenameSize = (short) (file[0] & 0xFF);
+		short chunkOffset = (short) (filenameSize + 1);
+		short dataSize = (short) (
+			((file[chunkOffset] - 1) * (DMS & 0xFF)) +
+			(file[(short) (chunkOffset + 1)] & 0xFF)
+		);
+
+		byte[] newBuffer = new byte[dataSize];
+		Util.arrayCopy(file, (short) (chunkOffset + 2), newBuffer, (short) 0, (short) newBuffer.length);
+
+		return newBuffer;
+	}
+
 	private short getNumberOfFile() {
 		short currOffset = 0, dataSize = 0, fileCounter = 0;
 		while (NVR[currOffset] != 0) {
@@ -215,9 +238,28 @@ public class TheApplet extends Applet {
 		apdu.setIncomingAndReceive();
 		byte[] buffer = apdu.getBuffer();
 
-		byte[] file = getNthFile(buffer[5]);
-		Util.arrayCopy(file, (short) 0, buffer, (short) 0, (short) file.length);
+		byte P1 = buffer[2];
+		byte P2 = buffer[3];
 
-		apdu.setOutgoingAndSend((short) 0, (short) file.length);
+		byte[] file = getNthFile(buffer[5]);
+
+		if (P1 == 0) {
+			byte[] metadata = getMetadata(file);
+			Util.arrayCopy(metadata, (short) 0, buffer, (short) 0, (short) metadata.length);
+			apdu.setOutgoingAndSend((short) 0, (short) metadata.length);
+		} else if (P1 == 1 || P1 == 2) {
+			byte[] metadata = getMetadata(file);
+			byte[] fileData = getData(file);
+			Util.arrayCopy(
+				fileData, 
+				(short) ((DMS & 0xFF) * (P2 - 1)), 
+				buffer, 
+				(short) 0, 
+				(short) (P1 == 2 ? metadata[(short) (metadata.length - 1)] & 0xFF : DMS & 0xFF)
+			);
+			apdu.setOutgoingAndSend((short) 0, (short) (P1 == 2 ? metadata[(short) (metadata.length - 1)] & 0xFF : DMS & 0xFF));
+		}
+
+		//Util.arrayCopy(file, (short) 0, buffer, (short) 0, (short) file.length);
 	}
 }
