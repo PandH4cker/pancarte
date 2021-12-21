@@ -170,19 +170,6 @@ public class TheApplet extends Applet {
 		return fileCounter;
 	}
 
-	/*private short getChunkOffset(byte[] buffer) {
-		short i = 0;
-		while(i < buffer.length) {
-			i += buffer[i] + 1;
-			if (buffer[i] == 0)
-				return i;
-			else {
-				short lastDataSize = buffer[i + 1];
-				i += (buffer[i] - 1) * DMS + lastDataSize;
-			}
-		}
-	}*/
-
 	void uncipherFileByCard(APDU apdu) {
 
 	}
@@ -259,7 +246,5 @@ public class TheApplet extends Applet {
 			);
 			apdu.setOutgoingAndSend((short) 0, (short) (P1 == 2 ? metadata[(short) (metadata.length - 1)] & 0xFF : DMS & 0xFF));
 		}
-
-		//Util.arrayCopy(file, (short) 0, buffer, (short) 0, (short) file.length);
 	}
 }

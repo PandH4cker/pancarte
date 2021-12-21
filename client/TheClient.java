@@ -254,14 +254,6 @@ public class TheClient {
 			for (; i < fileData.length; ++i)
 				data += (char) fileData[i];
 
-			/*for(; 
-				i < lastDataSizeOffset + 
-					1 + 
-					(DMS & 0xFF) * (metadata[chunkNumberOffset] - 1) + 
-					(metadata[lastDataSizeOffset] & 0xFF); 
-				++i)
-				data += (char) metadata[i];*/
-
 			System.out.println("[+] File #"+ nthFile + " [" + filename + "]:");
 			System.out.println(data);
 			System.out.println("[+] File successfully retrieved !");
