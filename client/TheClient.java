@@ -146,7 +146,79 @@ public class TheClient {
 	}
 
 	void listFilesFromCard() {
+		int apduLength = 5;
+		byte[] apdu = new byte[apduLength];
+		apdu[0] = CLA;
+		apdu[1] = CommandCode.LIST_FILES_FROM_CARD.getCode();
+		apdu[2] = P1 = 0;
+		apdu[3] = P2 = 0;
 
+		this.cmd = new CommandAPDU(apdu);
+		this.resp = this.sendAPDU(cmd, DISPLAY);
+
+		String responseString = HexString.hexify(
+									Arrays.copyOfRange(
+										resp.getBytes(), 
+										resp.getBytes().length - 2, 
+										resp.getBytes().length
+									)
+								);
+		ResponseCode responseCode = ResponseCode.fromString(responseString);
+		if (responseCode == ResponseCode.OK) {
+			short numberOfFiles = (short) (this.resp.getBytes()[0] & 0xFF);
+			if (numberOfFiles == 0)
+				System.out.println("[+] The card is empty");
+			else {
+				System.out.println("[+] There is " + numberOfFiles + " files");
+				System.out.println("ID\tFilename\t\tSize (Chunks, Last Data Size)");
+				System.out.println("-------------------------------------------------------------");
+				apdu[2] = P1 = (byte) 1;
+				for (short i = 0; i < numberOfFiles; ++i) {
+					apdu[3] = P2 = (byte) (i + 1);
+
+					this.cmd = new CommandAPDU(apdu);
+					this.resp = this.sendAPDU(cmd, false);
+
+					responseString = HexString.hexify(
+									Arrays.copyOfRange(
+										resp.getBytes(), 
+										resp.getBytes().length - 2, 
+										resp.getBytes().length
+									)
+								);
+					responseCode = ResponseCode.fromString(responseString);
+					if (responseCode == ResponseCode.OK) {
+						byte[] metadata = this.resp.getBytes();
+						String filename = "";
+
+						int index = 1;
+						for (; index <= metadata[0]; ++index)
+							filename += (char) metadata[index];
+						
+						int chunkNumberOffset = index++;
+						int lastDataSizeOffset = index++;
+						int dataSize = (metadata[chunkNumberOffset] - 1) * (DMS & 0xFF) + (metadata[lastDataSizeOffset] & 0xFF);
+
+						String dataSizeStr = "";
+
+						if (dataSize < 1000)
+							dataSizeStr = "" + dataSize + " bytes";
+						else if (dataSize < 10000)
+							dataSizeStr = "" + dataSize/1000 + " Mb";
+
+						// Improve here
+						System.out.println(
+							"" + (i + 1) + "\t" + 
+							filename + (dataSize >= 100 ? "\t\t\t" : "\t\t  ") + 
+							dataSizeStr + " (" + metadata[chunkNumberOffset] + ", " + (metadata[lastDataSizeOffset] & 0xFF) + ")"
+						);
+					} else {
+						printError(responseCode);
+						return;
+					}
+				}
+			}
+		} else printError(responseCode);
 	}
 
 	void compareFilesFromCard() {
@@ -202,7 +274,6 @@ public class TheClient {
 				apdu[3] = P2 = (byte) (i + 1);
 
 				this.cmd = new CommandAPDU(apdu);
-				System.out.println(Arrays.toString(apdu));
 				this.resp = this.sendAPDU(cmd, DISPLAY);
 
 				responseString = HexString.hexify(

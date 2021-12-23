@@ -151,7 +151,7 @@ public class TheApplet extends Applet {
 		return newBuffer;
 	}
 
-	private short getNumberOfFile() {
+	private short getNumberOfFiles() {
 		short currOffset = 0, dataSize = 0, fileCounter = 0;
 		while (NVR[currOffset] != 0) {
 			short chunkOffset = (short) (currOffset + (NVR[currOffset] + 1));
@@ -218,7 +218,20 @@ public class TheApplet extends Applet {
 	}
 
 	void listFilesFromCard(APDU apdu) {
+		apdu.setIncomingAndReceive();
+		byte[] buffer = apdu.getBuffer();
 
+		byte P1 = buffer[2];
+		byte P2 = buffer[3];
+
+		if (P1 == 0) {
+			buffer[0] = (byte) getNumberOfFiles();
+			apdu.setOutgoingAndSend((short) 0, (short) 1);
+		} else if (P1 == 1) {
+			byte[] metadata = getMetadata(getNthFile((short) (P2 & 0xFF)));
+			Util.arrayCopy(metadata, (short) 0, buffer, (short) 0, (short) metadata.length);
+			apdu.setOutgoingAndSend((short) 0, (short) metadata.length);
+		}
 	}
 
 	void readFileFromCard(APDU apdu) {
