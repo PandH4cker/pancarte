@@ -222,7 +222,13 @@ public class TheClient {
 	}
 
 	void compareFilesFromCard() {
-
+		String[] userInput = readKeyboard().split(" ");
+		if (userInput.length < 2)
+			System.err.println("You must provide two filepaths");
+		else if (isSameFiles(new File(userInput[0]), new File(userInput[1])))
+			System.out.println("Contents of those files are equal");
+		else
+			System.out.println("Contents of those files differ");
 	}
 
 
@@ -606,6 +612,24 @@ public class TheClient {
 		catch (IOException e) {
 			e.printStackTrace();
 		}
+	}
+
+	private static boolean isSameFiles(File f1, File f2) {
+		if (f1.length() != f2.length())
+			return false;
+
+		try {
+			BufferedInputStream bis1 = new BufferedInputStream(new FileInputStream(f1));
+			BufferedInputStream bis2 = new BufferedInputStream(new FileInputStream(f2));
+
+			int ch = 0;
+			while ((ch = bis1.read()) != -1)
+				if (ch != bis2.read())
+					return false;
+		} catch(IOException e) {
+			e.printStackTrace();
+		}
+		return true;
 	}
 
 	public static void main(String[] args) throws InterruptedException {
