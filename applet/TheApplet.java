@@ -117,7 +117,9 @@ public class TheApplet extends Applet {
 
 			if (--nth == 0) {
 				byte[] file = new byte[dataSize];
-				Util.arrayCopy(NVR, (short) currOffset, file, (short) 0, (short) dataSize);
+				//ISOException.throwIt((short) (0x6300 + (NVR.length == 16384 ? 0xFF : 0)));
+				//ISOException.throwIt((short) (NVR.length));
+				Util.arrayCopyNonAtomic(NVR, (short) currOffset, file, (short) 0, (short) dataSize);
 				return file;
 			}
 
@@ -133,7 +135,7 @@ public class TheApplet extends Applet {
 		short filenameSize = (short) (file[0] & 0xFF);
 		byte[] newBuffer = new byte[(short) ((filenameSize + 1) + 2)];
 
-		Util.arrayCopy(file, (short) 0, newBuffer, (short) 0, (short) newBuffer.length);
+		Util.arrayCopyNonAtomic(file, (short) 0, newBuffer, (short) 0, (short) newBuffer.length);
 
 		return newBuffer;
 	}
@@ -147,7 +149,7 @@ public class TheApplet extends Applet {
 		);
 
 		byte[] newBuffer = new byte[dataSize];
-		Util.arrayCopy(file, (short) (chunkOffset + 2), newBuffer, (short) 0, (short) newBuffer.length);
+		Util.arrayCopyNonAtomic(file, (short) (chunkOffset + 2), newBuffer, (short) 0, (short) newBuffer.length);
 
 		return newBuffer;
 	}
@@ -206,7 +208,7 @@ public class TheApplet extends Applet {
 			if (writableOffsetInNVR == -1)
 				ISOException.throwIt(SW_NO_MORE_MEMORY_AVAILABLE);
 
-			Util.arrayCopy(buffer, (short) filenameOffset, NVR, (short) writableOffsetInNVR, (short) (filenameSize + 1));
+			Util.arrayCopyNonAtomic(buffer, (short) filenameOffset, NVR, (short) writableOffsetInNVR, (short) (filenameSize + 1));
 
 			nbChunksOffsetInNVR = (short) (writableOffsetInNVR + filenameSize + 1);
 			NVR[nbChunksOffsetInNVR] = (byte) 0;
@@ -216,13 +218,13 @@ public class TheApplet extends Applet {
 
 			short offsetInNVR = (short) ((nbChunksOffsetInNVR + 2) + ((DMS & 0xFF) * (P2 - 1)));
 
-			Util.arrayCopy(buffer, (short) (dataSizeOffset + 1), NVR, offsetInNVR, (short) dataSize);
+			Util.arrayCopyNonAtomic(buffer, (short) (dataSizeOffset + 1), NVR, offsetInNVR, (short) dataSize);
 
 			++NVR[nbChunksOffsetInNVR];
 
 			if (P1 == 2)
 				NVR[(short) (nbChunksOffsetInNVR + 1)] = buffer[dataSizeOffset];
-		}		
+		}
 	}
 
 	void listFilesFromCard(APDU apdu) {
@@ -237,7 +239,7 @@ public class TheApplet extends Applet {
 			apdu.setOutgoingAndSend((short) 0, (short) 1);
 		} else if (P1 == 1) {
 			byte[] metadata = getMetadata(getNthFile((short) (P2 & 0xFF)));
-			Util.arrayCopy(metadata, (short) 0, buffer, (short) 0, (short) metadata.length);
+			Util.arrayCopyNonAtomic(metadata, (short) 0, buffer, (short) 0, (short) metadata.length);
 			apdu.setOutgoingAndSend((short) 0, (short) metadata.length);
 		}
 	}
@@ -253,12 +255,12 @@ public class TheApplet extends Applet {
 
 		if (P1 == 0) {
 			byte[] metadata = getMetadata(file);
-			Util.arrayCopy(metadata, (short) 0, buffer, (short) 0, (short) metadata.length);
+			Util.arrayCopyNonAtomic(metadata, (short) 0, buffer, (short) 0, (short) metadata.length);
 			apdu.setOutgoingAndSend((short) 0, (short) metadata.length);
 		} else if (P1 == 1 || P1 == 2) {
 			byte[] metadata = getMetadata(file);
 			byte[] fileData = getData(file);
-			Util.arrayCopy(
+			Util.arrayCopyNonAtomic(
 				fileData, 
 				(short) ((DMS & 0xFF) * (P2 - 1)), 
 				buffer, 

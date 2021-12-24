@@ -161,8 +161,8 @@ public class TheClient {
 
 						if (dataSize < 1000)
 							dataSizeStr = "" + dataSize + " bytes";
-						else if (dataSize < 10000)
-							dataSizeStr = "" + dataSize/1000 + " Mb";
+						else if (dataSize < 100000)
+							dataSizeStr = "" + (float) (dataSize/1000.0) + " Mb";
 
 						// Improve here
 						System.out.println(
@@ -171,6 +171,7 @@ public class TheClient {
 							dataSizeStr + " (" + metadata[chunkNumberOffset] + ", " + (metadata[lastDataSizeOffset] & 0xFF) + ")"
 						);
 					} else {
+						System.out.println(APDUtils.apdu2string(this.resp));
 						ResponseAPDUtils.printError(responseCode);
 						return;
 					}
