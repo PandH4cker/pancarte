@@ -8,7 +8,6 @@ public class TheApplet extends Applet {
 	private static final byte READ_FILE_FROM_CARD							= (byte)0x06;
 	private static final byte LIST_FILES_FROM_CARD							= (byte)0x05;
 	private static final byte WRITE_FILE_TO_CARD							= (byte)0x04;
-	private static final byte COMPARE_FILES_FROM_CARD						= (byte)0x03;
 	private static final byte UNCIPHER_FILE_BY_CARD							= (byte)0x02;
 	private static final byte CIPHER_FILE_BY_CARD							= (byte)0x01;
 
@@ -22,18 +21,12 @@ public class TheApplet extends Applet {
 		(byte) 0xDE,  (byte) 0xAD
 	};
 
-
 	private final static short NVRSIZE      = (short) 16384;
 	private static byte[] NVR               = new byte[NVRSIZE];
 
 	private static final byte DMS = (byte) 0xF0;
 	private static short nbChunksOffsetInNVR;
 	
-	private OwnerPIN readPin;
-	private OwnerPIN writePin;
-
-	private boolean pinSecurity;
-
 	private Cipher desECBNoPadEncrypt, desECBNoPadDecrypt;
 
 	private Key secretDESKey;
@@ -41,36 +34,19 @@ public class TheApplet extends Applet {
 	protected TheApplet() {
 		initKeyDES();
 		initCiphers();
-		/*byte[] writePinCode = {(byte)0x31,(byte)0x31,(byte)0x31,(byte)0x31};
-		byte[] readPinCode = {(byte)0x30,(byte)0x30,(byte)0x30,(byte)0x30};
-
-
-		this.writePin = new OwnerPIN((byte) 3, (byte) 8);
-		this.readPin = new OwnerPIN((byte) 3, (byte) 8);
-
-		this.writePin.update(writePinCode, (short) 0, (byte) 4);
-		this.readPin.update(readPinCode, (short) 0, (byte) 4);
-
-		this.pinSecurity = false;*/
 
 		this.register();
 	}
-
 
 	public static void install(byte[] bArray, short bOffset, byte bLength) throws ISOException {
 		new TheApplet();
 	} 
 
-
 	public boolean select() {
 		return true;
-		//return !(pin.getTriesRemaining() == 0);
 	} 
 
-
-	public void deselect() {
-		//pin.reset();
-	}
+	public void deselect() {}
 
 	private void initKeyDES() {
 	    try {
@@ -103,10 +79,6 @@ public class TheApplet extends Applet {
 
 			case UNCIPHER_FILE_BY_CARD:
 				uncipherFileByCard(apdu);
-			break;
-
-			case COMPARE_FILES_FROM_CARD:
-				compareFilesFromCard(apdu);
 			break;
 
 			case WRITE_FILE_TO_CARD:
@@ -209,7 +181,6 @@ public class TheApplet extends Applet {
         apdu.setOutgoingAndSend((short) 0, length);
 	}
 
-
 	void cipherFileByCard(APDU apdu) {
 		apdu.setIncomingAndReceive();
 
@@ -218,10 +189,6 @@ public class TheApplet extends Applet {
 
         desECBNoPadEncrypt.doFinal(buffer, (short) 5, (short) length, buffer, (short) 0);
         apdu.setOutgoingAndSend((short) 0, length);
-	}
-
-	void compareFilesFromCard(APDU apdu) {
-
 	}
 
 	void writeFileToCard(APDU apdu) {

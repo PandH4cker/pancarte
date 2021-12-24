@@ -9,6 +9,10 @@ import opencard.opt.util.*;
 
 import client.codes.CommandCode;
 import client.codes.ResponseCode;
+import client.utils.ResponseAPDUtils;
+import client.utils.Files;
+import client.utils.PKCS5;
+import client.utils.APDUtils;
 
 public class TheClient {
 	private PassThruCardService servClient;
@@ -19,8 +23,8 @@ public class TheClient {
 	private static final boolean DISPLAY = true;
 
 	private static final byte CLA								= (byte) 0x00;
-	private static byte P1										= (byte) 0x00;
-	private static byte P2										= (byte) 0x00;
+	private static 		 byte P1								= (byte) 0x00;
+	private static 		 byte P2								= (byte) 0x00;
 	private static final byte DMS 								= (byte) 0xF0;
 	private static 		 byte LC								= (byte) 0x00;
 
@@ -29,14 +33,14 @@ public class TheClient {
 
 		try {
 			SmartCard.start();
-			System.out.print( "Smartcard inserted?... " ); 
+			System.out.print("Smartcard inserted?... "); 
 
 			CardRequest cr = new CardRequest(CardRequest.ANYCARD, null, null); 
 
-			SmartCard sm = SmartCard.waitForCard (cr);
+			SmartCard sm = SmartCard.waitForCard(cr);
 
 			if (sm != null)
-				System.out.println ("got a SmartCard object!\n");
+				System.out.println("got a SmartCard object!\n");
 			else
 				System.out.println("did not get a SmartCard object!\n");
 
@@ -58,45 +62,13 @@ public class TheClient {
 		try {
 			result = this.servClient.sendCommandAPDU(cmd);
 			if(display)
-				displayAPDU(cmd, result);
+				APDUtils.displayAPDU(cmd, result);
 		} catch(Exception e) {
 			System.out.println("Exception caught in sendAPDU: " + e.getMessage());
 			System.exit(-1);
 		}
 		return result;
 	}
-
-
-	/************************************************
-	 * *********** BEGINNING OF TOOLS ***************
-	 * **********************************************/
-
-
-	private String apdu2string(APDU apdu) {
-		return removeCR(HexString.hexify(apdu.getBytes()));
-	}
-
-
-	public void displayAPDU(APDU apdu) {
-		System.out.println(removeCR(HexString.hexify(apdu.getBytes())) + "\n");
-	}
-
-
-	public void displayAPDU(CommandAPDU termCmd, ResponseAPDU cardResp) {
-		System.out.println("--> Term: " + removeCR(HexString.hexify(termCmd.getBytes())));
-		System.out.println("<-- Card: " + removeCR(HexString.hexify(cardResp.getBytes())));
-	}
-
-
-	private String removeCR(String string) {
-		return string.replace('\n', ' ');
-	}
-
-
-	/******************************************
-	 * *********** END OF TOOLS ***************
-	 * ****************************************/
-
 
 	private boolean selectApplet() {
 		boolean cardOk = false;
@@ -107,7 +79,7 @@ public class TheClient {
 				    (byte)0x03, (byte)0x01, (byte)0x0C, (byte)0x06, (byte)0x01
 			});
 			ResponseAPDU resp = this.sendAPDU(cmd);
-			if(this.apdu2string(resp).equals("90 00"))
+			if(APDUtils.apdu2string(resp).equals("90 00"))
 				cardOk = true;
 		} catch(Exception e) {
 			System.out.println("Exception caught in selectApplet: " + e.getMessage());
@@ -156,14 +128,7 @@ public class TheClient {
 		this.cmd = new CommandAPDU(apdu);
 		this.resp = this.sendAPDU(cmd, DISPLAY);
 
-		String responseString = HexString.hexify(
-									Arrays.copyOfRange(
-										resp.getBytes(), 
-										resp.getBytes().length - 2, 
-										resp.getBytes().length
-									)
-								);
-		ResponseCode responseCode = ResponseCode.fromString(responseString);
+		ResponseCode responseCode = ResponseAPDUtils.byteArrayToResponseCode(this.resp.getBytes());
 		if (responseCode == ResponseCode.OK) {
 			short numberOfFiles = (short) (this.resp.getBytes()[0] & 0xFF);
 			if (numberOfFiles == 0)
@@ -179,14 +144,7 @@ public class TheClient {
 					this.cmd = new CommandAPDU(apdu);
 					this.resp = this.sendAPDU(cmd, false);
 
-					responseString = HexString.hexify(
-									Arrays.copyOfRange(
-										resp.getBytes(), 
-										resp.getBytes().length - 2, 
-										resp.getBytes().length
-									)
-								);
-					responseCode = ResponseCode.fromString(responseString);
+					responseCode = ResponseAPDUtils.byteArrayToResponseCode(this.resp.getBytes());
 					if (responseCode == ResponseCode.OK) {
 						byte[] metadata = this.resp.getBytes();
 						String filename = "";
@@ -213,19 +171,19 @@ public class TheClient {
 							dataSizeStr + " (" + metadata[chunkNumberOffset] + ", " + (metadata[lastDataSizeOffset] & 0xFF) + ")"
 						);
 					} else {
-						printError(responseCode);
+						ResponseAPDUtils.printError(responseCode);
 						return;
 					}
 				}
 			}
-		} else printError(responseCode);
+		} else ResponseAPDUtils.printError(responseCode);
 	}
 
 	void compareFilesFromCard() {
 		String[] userInput = readKeyboard().split(" ");
 		if (userInput.length < 2)
 			System.err.println("You must provide two filepaths");
-		else if (isSameFiles(new File(userInput[0]), new File(userInput[1])))
+		else if (Files.isSameFiles(new File(userInput[0]), new File(userInput[1])))
 			System.out.println("Contents of those files are equal");
 		else
 			System.out.println("Contents of those files differ");
@@ -236,11 +194,10 @@ public class TheClient {
 		String filePath = readKeyboard();
 		try {
 			File f = new File(filePath);
-			InputStream inputStream = new FileInputStream(f);
-			DataInputStream dataInputStream = new DataInputStream(inputStream);
+			DataInputStream dataInputStream = new DataInputStream(new FileInputStream(f));
 
 			File outputFile = new File("Decrypted/" + f.getName() + ".dec");
-			truncateFile(outputFile);
+			Files.truncateFile(outputFile);
 
 			FileOutputStream outputStream = new FileOutputStream(outputFile, true);
 			while(dataInputStream.available() > 0) {
@@ -258,8 +215,6 @@ public class TheClient {
 				apdu[3] = P2 = 0;
 				apdu[4] = LC = (byte) bufferLength;
 
-				System.out.println("Buffer length: " + bufferLength);
-
 				System.arraycopy(buffer, 0, apdu, 5, LC & 0xFF);
 				
 				this.cmd = new CommandAPDU(apdu);
@@ -267,22 +222,15 @@ public class TheClient {
 
 				byte[] respBytes = this.resp.getBytes();
 
-				String responseString = HexString.hexify(
-					Arrays.copyOfRange(
-						respBytes, 
-						respBytes.length - 2, 
-						respBytes.length
-					)
-				);
-				ResponseCode responseCode = ResponseCode.fromString(responseString);
+				ResponseCode responseCode = ResponseAPDUtils.byteArrayToResponseCode(respBytes);
 				if (responseCode == ResponseCode.OK) {
-					byte[] data = Arrays.copyOfRange(respBytes, 0, respBytes.length - 2);
+					byte[] data = ResponseAPDUtils.getDataFromResponseCodeByteArray(respBytes);
 
 					if (!(dataInputStream.available() > 0))
-						data = trimPKCS5Padding(data);
+						data = PKCS5.trimPKCS5Padding(data);
 
 					outputStream.write(data);
-				} else printError(responseCode);
+				} else ResponseAPDUtils.printError(responseCode);
 			}
 		} catch (Exception e) {
 			System.err.println(e.getMessage());
@@ -294,19 +242,16 @@ public class TheClient {
 		String filePath = readKeyboard();
 		try {
 			File f = new File(filePath);
-			InputStream inputStream = new FileInputStream(f);
-			DataInputStream dataInputStream = new DataInputStream(inputStream);
+			DataInputStream dataInputStream = new DataInputStream(new FileInputStream(f));
 
 			byte[] clearContent = new byte[(int) f.length()];
 			dataInputStream.readFully(clearContent);
 
-			byte[] paddedText = addPKCS5Padding(clearContent, (short) (DMS & 0xFF));
-			dataInputStream = new DataInputStream(
-				new ByteArrayInputStream(paddedText)
-			);
+			byte[] paddedText = PKCS5.addPKCS5Padding(clearContent, (short) (DMS & 0xFF));
+			dataInputStream = new DataInputStream(new ByteArrayInputStream(paddedText));
 
 			File outputFile = new File("Encrypted/" + f.getName() + ".enc");
-			truncateFile(outputFile);
+			Files.truncateFile(outputFile);
 
 			FileOutputStream outputStream = new FileOutputStream(outputFile, true);
 			while(dataInputStream.available() > 0) {
@@ -333,18 +278,10 @@ public class TheClient {
 
 				byte[] respBytes = this.resp.getBytes();
 
-				String responseString = HexString.hexify(
-					Arrays.copyOfRange(
-						respBytes, 
-						respBytes.length - 2, 
-						respBytes.length
-					)
-				);
-				ResponseCode responseCode = ResponseCode.fromString(responseString);
-				if (responseCode == ResponseCode.OK) {
-					byte[] data = Arrays.copyOfRange(respBytes, 0, respBytes.length - 2);
-					outputStream.write(data);
-				} else printError(responseCode);
+				ResponseCode responseCode = ResponseAPDUtils.byteArrayToResponseCode(this.resp.getBytes());
+				if (responseCode == ResponseCode.OK)
+					outputStream.write(ResponseAPDUtils.getDataFromResponseCodeByteArray(this.resp.getBytes()));
+				else ResponseAPDUtils.printError(responseCode);
 			}
 		} catch (Exception e) {
 			System.err.println(e.getMessage());
@@ -366,8 +303,7 @@ public class TheClient {
 		this.cmd = new CommandAPDU(apdu);
 		this.resp = this.sendAPDU(cmd, DISPLAY);
 
-		String responseString = this.apdu2string(resp);
-		ResponseCode responseCode = ResponseCode.fromString(responseString.substring(responseString.length() - 5));		
+		ResponseCode responseCode = ResponseAPDUtils.byteArrayToResponseCode(this.resp.getBytes());
 		if (responseCode == ResponseCode.OK) {
 			byte[] metadata = this.resp.getBytes();
 			String filename = "";
@@ -394,22 +330,15 @@ public class TheClient {
 				this.cmd = new CommandAPDU(apdu);
 				this.resp = this.sendAPDU(cmd, DISPLAY);
 
-				responseString = HexString.hexify(
-					Arrays.copyOfRange(
-						resp.getBytes(), 
-						resp.getBytes().length - 2, 
-						resp.getBytes().length
-					)
-				);
-				responseCode = ResponseCode.fromString(responseString);
-				if (responseCode == ResponseCode.OK) {
-					System.arraycopy(Arrays.copyOfRange(
-						resp.getBytes(), 
-						0, 
-						resp.getBytes().length - 2
-					), 0, fileData, (DMS & 0xFF) * i, (DMS & 0xFF));
-				} else {
-					printError(responseCode);
+				responseCode = ResponseAPDUtils.byteArrayToResponseCode(this.resp.getBytes());
+				if (responseCode == ResponseCode.OK)
+					System.arraycopy(
+						ResponseAPDUtils.getDataFromResponseCodeByteArray(this.resp.getBytes()), 
+						0, fileData, 
+						(DMS & 0xFF) * i, (DMS & 0xFF)
+					);
+				else {
+					ResponseAPDUtils.printError(responseCode);
 					return;
 				}
 			}
@@ -420,22 +349,15 @@ public class TheClient {
 			this.cmd = new CommandAPDU(apdu);
 			this.resp = this.sendAPDU(cmd, DISPLAY);
 
-			responseString = HexString.hexify(
-				Arrays.copyOfRange(
-					resp.getBytes(), 
-					resp.getBytes().length - 2, 
-					resp.getBytes().length
-				)
-			);
-			responseCode = ResponseCode.fromString(responseString);
+			responseCode = ResponseAPDUtils.byteArrayToResponseCode(this.resp.getBytes());
 			if (responseCode == ResponseCode.OK) {
-				System.arraycopy(Arrays.copyOfRange(
-					resp.getBytes(), 
-					0, 
-					resp.getBytes().length - 2
-				), 0, fileData, (DMS & 0xFF) * i, (metadata[lastDataSizeOffset] & 0xFF));
+				System.arraycopy(
+					ResponseAPDUtils.getDataFromResponseCodeByteArray(this.resp.getBytes()), 
+					0, fileData, 
+					(DMS & 0xFF) * i, (metadata[lastDataSizeOffset] & 0xFF)
+				);
 			} else {
-				printError(responseCode);
+				ResponseAPDUtils.printError(responseCode);
 				return;
 			}
 
@@ -443,10 +365,16 @@ public class TheClient {
 			for (; i < fileData.length; ++i)
 				data += (char) fileData[i];
 
-			System.out.println("[+] File #"+ nthFile + " [" + filename + "]:");
-			System.out.println(data);
+			System.out.println("[+] File #"+ nthFile + " [" + filename + "]");
 			System.out.println("[+] File successfully retrieved !");
-		} else printError(responseCode);
+
+			try {
+				FileOutputStream outputStream = new FileOutputStream(new File("ReadFiles/" + filename));
+				outputStream.write(fileData);
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		} else ResponseAPDUtils.printError(responseCode);
 	}
 
 
@@ -472,10 +400,10 @@ public class TheClient {
 			this.cmd = new CommandAPDU(apdu);
 			resp = this.sendAPDU(cmd, DISPLAY);
 
-			ResponseCode responseCode = ResponseCode.fromString(this.apdu2string(resp));
+			ResponseCode responseCode = ResponseAPDUtils.byteArrayToResponseCode(this.resp.getBytes());
 			if (responseCode == ResponseCode.OK)
 				System.out.println("[+] Filename " + basename + " written");
-			else printError(responseCode);
+			else ResponseAPDUtils.printError(responseCode);
 
 			P1 = 1;
 			while(dataInputStream.available() > 0) {
@@ -503,47 +431,23 @@ public class TheClient {
 				this.cmd = new CommandAPDU(apdu);
 				resp = this.sendAPDU(cmd, DISPLAY);
 
-				responseCode = ResponseCode.fromString(this.apdu2string(resp));
+				responseCode = ResponseAPDUtils.byteArrayToResponseCode(this.resp.getBytes());
 				if (responseCode == ResponseCode.OK)
 					System.out.println("[+] Added Data: " + Arrays.toString(buffer) + " to " + basename);
-				else printError(responseCode);
+				else {
+					ResponseAPDUtils.printError(responseCode);
+					return;
+				}
 			}
-
 			System.out.println("[+] File written successfully !");
 		} catch (Exception e) {
 			System.err.println(e.getMessage());
 		}
 	}
 
-	private byte[] addPKCS5Padding(byte[] clearContent, short blockSize) {
-		byte padding = (byte) (blockSize - clearContent.length % blockSize);
-
-		byte[] padText = new byte[(short) (padding & 0xFF)];
-		Arrays.fill(padText, padding);
-
-		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-		try {
-			byteArrayOutputStream.write(clearContent);
-			byteArrayOutputStream.write(padText);
-		} catch (Exception ignored) {}
-
-		return byteArrayOutputStream.toByteArray();
-	}
-
-	private byte[] trimPKCS5Padding(byte[] decrypted) {
-		byte padding = decrypted[decrypted.length - 1];
-		return Arrays.copyOfRange(
-			decrypted,
-			0,
-			decrypted.length - (short) (padding & 0xFF)
-		);
-	}
-
-
 	private void exit() {
 		loop = false;
 	}
-
 
 	private void runAction(int choice) {
 		switch(choice) {
@@ -599,37 +503,6 @@ public class TheClient {
 			printMenu();
 			runAction(readMenuChoice());
 		}
-	}
-
-	private void printError(ResponseCode responseCode) {
-		System.out.println("[!] ERROR: " + responseCode);
-	}
-
-	private void truncateFile(File f) {
-		try {
-			new PrintWriter(f).close();
-		}
-		catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
-
-	private static boolean isSameFiles(File f1, File f2) {
-		if (f1.length() != f2.length())
-			return false;
-
-		try {
-			BufferedInputStream bis1 = new BufferedInputStream(new FileInputStream(f1));
-			BufferedInputStream bis2 = new BufferedInputStream(new FileInputStream(f2));
-
-			int ch = 0;
-			while ((ch = bis1.read()) != -1)
-				if (ch != bis2.read())
-					return false;
-		} catch(IOException e) {
-			e.printStackTrace();
-		}
-		return true;
 	}
 
 	public static void main(String[] args) throws InterruptedException {
