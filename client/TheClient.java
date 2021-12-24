@@ -21,7 +21,7 @@ public class TheClient {
 	private static final byte CLA								= (byte) 0x00;
 	private static byte P1										= (byte) 0x00;
 	private static byte P2										= (byte) 0x00;
-	private static final byte DMS 								= (byte) 0x90;
+	private static final byte DMS 								= (byte) 0xF0;
 	private static 		 byte LC								= (byte) 0x00;
 
 	public TheClient() {
@@ -227,10 +227,122 @@ public class TheClient {
 
 
 	void uncipherFileByCard() {
+		String filePath = readKeyboard();
+		try {
+			File f = new File(filePath);
+			InputStream inputStream = new FileInputStream(f);
+			DataInputStream dataInputStream = new DataInputStream(inputStream);
+
+			File outputFile = new File("Decrypted/" + f.getName() + ".dec");
+			truncateFile(outputFile);
+
+			FileOutputStream outputStream = new FileOutputStream(outputFile, true);
+			while(dataInputStream.available() > 0) {
+				int bufferLength = (DMS & 0xFF);
+				byte[] buffer = new byte[bufferLength];
+
+				dataInputStream.readFully(buffer, 0, bufferLength);
+
+				int apduLength = 6 + bufferLength;
+				
+				byte[] apdu = new byte[apduLength];
+				apdu[0] = CLA;
+				apdu[1] = CommandCode.UNCIPHER_FILE_BY_CARD.getCode();
+				apdu[2] = P1 = 0;
+				apdu[3] = P2 = 0;
+				apdu[4] = LC = (byte) bufferLength;
+
+				System.out.println("Buffer length: " + bufferLength);
+
+				System.arraycopy(buffer, 0, apdu, 5, LC & 0xFF);
+				
+				this.cmd = new CommandAPDU(apdu);
+				this.resp = this.sendAPDU(cmd, DISPLAY);
+
+				byte[] respBytes = this.resp.getBytes();
+
+				String responseString = HexString.hexify(
+					Arrays.copyOfRange(
+						respBytes, 
+						respBytes.length - 2, 
+						respBytes.length
+					)
+				);
+				ResponseCode responseCode = ResponseCode.fromString(responseString);
+				if (responseCode == ResponseCode.OK) {
+					byte[] data = Arrays.copyOfRange(respBytes, 0, respBytes.length - 2);
+
+					if (!(dataInputStream.available() > 0))
+						data = trimPKCS5Padding(data);
+
+					outputStream.write(data);
+				} else printError(responseCode);
+			}
+		} catch (Exception e) {
+			System.err.println(e.getMessage());
+		}
 	}
 
 
 	void cipherFileByCard() {
+		String filePath = readKeyboard();
+		try {
+			File f = new File(filePath);
+			InputStream inputStream = new FileInputStream(f);
+			DataInputStream dataInputStream = new DataInputStream(inputStream);
+
+			byte[] clearContent = new byte[(int) f.length()];
+			dataInputStream.readFully(clearContent);
+
+			byte[] paddedText = addPKCS5Padding(clearContent, (short) (DMS & 0xFF));
+			dataInputStream = new DataInputStream(
+				new ByteArrayInputStream(paddedText)
+			);
+
+			File outputFile = new File("Encrypted/" + f.getName() + ".enc");
+			truncateFile(outputFile);
+
+			FileOutputStream outputStream = new FileOutputStream(outputFile, true);
+			while(dataInputStream.available() > 0) {
+				int bufferLength = (DMS & 0xFF);
+				byte[] buffer = new byte[bufferLength];
+
+				dataInputStream.readFully(buffer, 0, bufferLength);
+								
+				int apduLength = 6 + bufferLength;
+				
+				byte[] apdu = new byte[apduLength];
+				apdu[0] = CLA;
+				apdu[1] = CommandCode.CIPHER_FILE_BY_CARD.getCode();
+				apdu[2] = P1 = 0;
+				apdu[3] = P2 = 0;
+				apdu[4] = LC = (byte) bufferLength;
+
+				System.out.println("Buffer length: " + bufferLength);
+
+				System.arraycopy(buffer, 0, apdu, 5, LC & 0xFF);
+
+				this.cmd = new CommandAPDU(apdu);
+				this.resp = this.sendAPDU(cmd, DISPLAY);
+
+				byte[] respBytes = this.resp.getBytes();
+
+				String responseString = HexString.hexify(
+					Arrays.copyOfRange(
+						respBytes, 
+						respBytes.length - 2, 
+						respBytes.length
+					)
+				);
+				ResponseCode responseCode = ResponseCode.fromString(responseString);
+				if (responseCode == ResponseCode.OK) {
+					byte[] data = Arrays.copyOfRange(respBytes, 0, respBytes.length - 2);
+					outputStream.write(data);
+				} else printError(responseCode);
+			}
+		} catch (Exception e) {
+			System.err.println(e.getMessage());
+		}
 	}
 
 	void readFileFromCard() {
@@ -397,190 +509,37 @@ public class TheClient {
 		}
 	}
 
+	private byte[] addPKCS5Padding(byte[] clearContent, short blockSize) {
+		byte padding = (byte) (blockSize - clearContent.length % blockSize);
 
-	/*void updateWritePIN() {
-		String pin = readKeyboard();
-		int apduLength = pin.length() + 5;
-		byte[] apdu = new byte[apduLength];
-		apdu[0] = CLA;
-		apdu[1] = CommandCode.UPDATE_WRITE_PIN.getCode();
-		apdu[2] = P1;
-		apdu[3] = P2;
-		apdu[4] = LC = (byte) pin.length();
+		byte[] padText = new byte[(short) (padding & 0xFF)];
+		Arrays.fill(padText, padding);
 
-		System.arraycopy(pin.getBytes(), 0, apdu, 5, LC);
+		ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+		try {
+			byteArrayOutputStream.write(clearContent);
+			byteArrayOutputStream.write(padText);
+		} catch (Exception ignored) {}
 
-		this.cmd = new CommandAPDU(apdu);
-		resp = this.sendAPDU(cmd, DISPLAY);
+		return byteArrayOutputStream.toByteArray();
+	}
 
-		ResponseCode responseCode = ResponseCode.fromString(this.apdu2string(resp));
-		if (responseCode == ResponseCode.OK)
-			System.out.println("[+] Write PIN Updated With " + pin);
-		else printError(responseCode);
-	}*/
-
-
-	/*void updateReadPIN() {
-		String pin = readKeyboard();
-		int apduLength = pin.length() + 5;
-		byte[] apdu = new byte[apduLength];
-		apdu[0] = CLA;
-		apdu[1] = CommandCode.UPDATE_READ_PIN.getCode();
-		apdu[2] = P1;
-		apdu[3] = P2;
-		apdu[4] = LC = (byte) pin.length();
-
-		System.arraycopy(pin.getBytes(), 0, apdu, 5, LC);
-
-		this.cmd = new CommandAPDU(apdu);
-		resp = this.sendAPDU(cmd, DISPLAY);
-
-		ResponseCode responseCode = ResponseCode.fromString(this.apdu2string(resp));
-		if (responseCode == ResponseCode.OK)
-			System.out.println("[+] Read PIN Updated With " + pin);
-		else printError(responseCode);
-	}*/
+	private byte[] trimPKCS5Padding(byte[] decrypted) {
+		byte padding = decrypted[decrypted.length - 1];
+		return Arrays.copyOfRange(
+			decrypted,
+			0,
+			decrypted.length - (short) (padding & 0xFF)
+		);
+	}
 
 
-	/*void displayPINSecurity() {
-		int apduLength = 5;
-		byte[] apdu = new byte[apduLength];
-		apdu[0] = CLA;
-		apdu[1] = CommandCode.DISPLAY_PIN_SECURITY.getCode();
-		apdu[2] = P1;
-		apdu[3] = P2;
-		apdu[4] = LC = 0x00;
-
-		this.cmd = new CommandAPDU(apdu);
-		resp = this.sendAPDU(cmd, DISPLAY);
-
-		String responseString = this.apdu2string(resp);
-		ResponseCode responseCode = ResponseCode.fromString(responseString.substring(responseString.length() - 5));
-		if (responseCode == ResponseCode.OK) {
-			byte[] bytes = resp.getBytes();
-	    	System.out.println("[+] PINSecurity: " + (bytes[0] == 1 ? "activated" : "deactivated"));
-		} else printError(responseCode);
-	}*/
-
-
-	/*void desactivateActivatePINSecurity() {
-		int apduLength = 5;
-		byte[] apdu = new byte[apduLength];
-		apdu[0] = CLA;
-		apdu[1] = CommandCode.DESACTIVATE_ACTIVATE_PIN_SECURITY.getCode();
-		apdu[2] = P1;
-		apdu[3] = P2;
-		apdu[4] = LC = 0x00;
-
-		this.cmd = new CommandAPDU(apdu);
-		resp = this.sendAPDU(cmd, DISPLAY);
-
-		ResponseCode responseCode = ResponseCode.fromString(this.apdu2string(resp));
-		if (responseCode == ResponseCode.OK)
-			System.out.println("[+] Toggled PIN Security");
-		else printError(responseCode);
-	}*/
-
-
-	/*void enterReadPIN() {
-		String pin = readKeyboard();
-		int apduLength = pin.length() + 5;
-		byte[] apdu = new byte[apduLength];
-		apdu[0] = CLA;
-		apdu[1] = CommandCode.ENTER_READ_PIN.getCode();
-		apdu[2] = P1;
-		apdu[3] = P2;
-		apdu[4] = LC = (byte) pin.length();
-
-		System.arraycopy(pin.getBytes(), 0, apdu, 5, LC);
-
-		this.cmd = new CommandAPDU(apdu);
-		resp = this.sendAPDU(cmd, DISPLAY);
-
-
-		ResponseCode responseCode = ResponseCode.fromString(this.apdu2string(resp));
-		if (responseCode == ResponseCode.OK)
-			System.out.println("[+] Read PIN Enabled");
-		else printError(responseCode);
-	}*/
-
-
-	/*void enterWritePIN() {
-		String pin = readKeyboard();
-		int apduLength = pin.length() + 5;
-		byte[] apdu = new byte[apduLength];
-		apdu[0] = CLA;
-		apdu[1] = CommandCode.ENTER_WRITE_PIN.getCode();
-		apdu[2] = P1;
-		apdu[3] = P2;
-		apdu[4] = LC = (byte) pin.length();
-
-		System.arraycopy(pin.getBytes(), 0, apdu, 5, LC);
-
-		this.cmd = new CommandAPDU(apdu);
-		resp = this.sendAPDU(cmd, DISPLAY);
-
-		ResponseCode responseCode = ResponseCode.fromString(this.apdu2string(resp));
-		if (responseCode == ResponseCode.OK)
-			System.out.println("[+] Write PIN Enabled");
-		else printError(responseCode);
-	}*/
-
-
-	/*void readNameFromCard() {
-		int apduLength = 5;
-		byte[] apdu = new byte[apduLength];
-		apdu[0] = CLA;
-		apdu[1] = CommandCode.READ_NAME_FROM_CARD.getCode();
-		apdu[2] = P1;
-		apdu[3] = P2;
-		apdu[4] = LC = 0x00;
-
-		this.cmd = new CommandAPDU(apdu);
-		resp = this.sendAPDU(cmd, DISPLAY);
-
-		String responseString = this.apdu2string(resp);
-		ResponseCode responseCode = ResponseCode.fromString(responseString.substring(responseString.length() - 5));
-		if (responseCode == ResponseCode.OK) {
-			byte[] bytes = resp.getBytes();
-			String msg = "";
-
-			for(int i = 0; i < bytes.length - 2; ++i)
-		    	msg += new StringBuffer("").append((char) bytes[i]);
-
-	    	System.out.println("[+] " + msg + " name retrieved from the card");
-		} else printError(responseCode);
-	}*/
-
-
-	/*void writeNameToCard() {
-		String name = readKeyboard();
-		int apduLength = name.length() + 5;
-		byte[] apdu = new byte[apduLength];
-		apdu[0] = CLA;
-		apdu[1] = CommandCode.WRITE_NAME_TO_CARD.getCode();
-		apdu[2] = P1;
-		apdu[3] = P2;
-		apdu[4] = LC = (byte) name.length();
-
-		System.arraycopy(name.getBytes(), 0, apdu, 5, LC);
-
-		this.cmd = new CommandAPDU(apdu);
-		resp = this.sendAPDU(cmd, DISPLAY);
-
-		ResponseCode responseCode = ResponseCode.fromString(this.apdu2string(resp));
-		if (responseCode == ResponseCode.OK) 
-			System.out.println("[+] " + name + " added to the name of the card");
-		else printError(responseCode);
-	}*/
-
-
-	void exit() {
+	private void exit() {
 		loop = false;
 	}
 
 
-	void runAction(int choice) {
+	private void runAction(int choice) {
 		switch(choice) {
 			case 6: readFileFromCard(); break;
 			case 5: listFilesFromCard(); break;
@@ -593,8 +552,7 @@ public class TheClient {
 		}
 	}
 
-
-	String readKeyboard() {
+	private String readKeyboard() {
 		String result = null;
 
 		try {
@@ -605,8 +563,7 @@ public class TheClient {
 		return result;
 	}
 
-
-	int readMenuChoice() {
+	private int readMenuChoice() {
 		int result = 0;
 
 		try {
@@ -619,8 +576,7 @@ public class TheClient {
 		return result;
 	}
 
-
-	void printMenu() {
+	private void printMenu() {
 		System.out.println("");
 		System.out.println("6: read file from card");
 		System.out.println("5: list files from card");
@@ -632,18 +588,25 @@ public class TheClient {
 		System.out.print("--> ");
 	}
 
-
-	void mainLoop() {
+	private void mainLoop() {
 		while(loop) {
 			printMenu();
 			runAction(readMenuChoice());
 		}
 	}
 
-	void printError(ResponseCode responseCode) {
+	private void printError(ResponseCode responseCode) {
 		System.out.println("[!] ERROR: " + responseCode);
 	}
 
+	private void truncateFile(File f) {
+		try {
+			new PrintWriter(f).close();
+		}
+		catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
 
 	public static void main(String[] args) throws InterruptedException {
 		new TheClient();

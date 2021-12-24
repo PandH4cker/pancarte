@@ -1,6 +1,8 @@
 package applet;
 
 import javacard.framework.*;
+import javacard.security.*;
+import javacardx.crypto.*;
 
 public class TheApplet extends Applet {
 	private static final byte READ_FILE_FROM_CARD							= (byte)0x06;
@@ -13,12 +15,18 @@ public class TheApplet extends Applet {
 	private final static short SW_NO_MORE_MEMORY_AVAILABLE 	= (short) 0x6300;
 	private final static short SW_FILE_NUMBER_ERROR 		= (short) 0x6301;
 
+	private final static byte[] KEY = new byte[] {
+		(byte) 0x13,  (byte) 0x37, 
+		(byte) 0xBA,  (byte) 0xBE, 
+		(byte) 0xCA,  (byte) 0xFE, 
+		(byte) 0xDE,  (byte) 0xAD
+	};
 
 
 	private final static short NVRSIZE      = (short) 16384;
 	private static byte[] NVR               = new byte[NVRSIZE];
 
-	private static final byte DMS = (byte) 0x90;
+	private static final byte DMS = (byte) 0xF0;
 	private static short nbChunksOffsetInNVR;
 	
 	private OwnerPIN readPin;
@@ -26,9 +34,13 @@ public class TheApplet extends Applet {
 
 	private boolean pinSecurity;
 
+	private Cipher desECBNoPadEncrypt, desECBNoPadDecrypt;
 
+	private Key secretDESKey;
 
 	protected TheApplet() {
+		initKeyDES();
+		initCiphers();
 		/*byte[] writePinCode = {(byte)0x31,(byte)0x31,(byte)0x31,(byte)0x31};
 		byte[] readPinCode = {(byte)0x30,(byte)0x30,(byte)0x30,(byte)0x30};
 
@@ -60,6 +72,23 @@ public class TheApplet extends Applet {
 		//pin.reset();
 	}
 
+	private void initKeyDES() {
+	    try {
+		    secretDESKey = KeyBuilder.buildKey(KeyBuilder.TYPE_DES, KeyBuilder.LENGTH_DES, false);
+		    ((DESKey) secretDESKey).setKey(KEY, (short) 0);
+	    } catch(Exception ignored) {}
+    }
+
+    private void initCiphers() {
+	    if(secretDESKey != null) 
+			try {
+				desECBNoPadEncrypt = Cipher.getInstance(Cipher.ALG_DES_ECB_NOPAD, false);
+				desECBNoPadEncrypt.init(secretDESKey, Cipher.MODE_ENCRYPT);
+
+				desECBNoPadDecrypt = Cipher.getInstance(Cipher.ALG_DES_ECB_NOPAD, false);
+				desECBNoPadDecrypt.init(secretDESKey, Cipher.MODE_DECRYPT);
+			} catch(Exception ignored) {}
+    }
 
 	public void process(APDU apdu) throws ISOException {
 		if(selectingApplet() == true)
@@ -171,12 +200,24 @@ public class TheApplet extends Applet {
 	}
 
 	void uncipherFileByCard(APDU apdu) {
+		apdu.setIncomingAndReceive();
 
+        byte[] buffer = apdu.getBuffer();
+        short length = (short) (buffer[4] & 0xFF);
+
+        desECBNoPadDecrypt.doFinal(buffer, (short) 5, (short) length, buffer, (short) 0);
+        apdu.setOutgoingAndSend((short) 0, length);
 	}
 
 
 	void cipherFileByCard(APDU apdu) {
+		apdu.setIncomingAndReceive();
 
+        byte[] buffer = apdu.getBuffer();
+        short length = (short) (buffer[4] & 0xFF);
+
+        desECBNoPadEncrypt.doFinal(buffer, (short) 5, (short) length, buffer, (short) 0);
+        apdu.setOutgoingAndSend((short) 0, length);
 	}
 
 	void compareFilesFromCard(APDU apdu) {
